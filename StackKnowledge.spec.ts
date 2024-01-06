@@ -1,4 +1,4 @@
-import {getIdentifierTo, StackKnowledge} from './StackKnowledge';
+import {StackKnowledge} from './StackKnowledge';
 import {expect} from 'chai';
 
 describe('StackKnowledge', () => {
@@ -69,6 +69,7 @@ describe('StackKnowledge', () => {
 			expect(mermaidFlowchart).to.equal('```mermaid\nflowchart LR\n```');
 		});
 	});
+/* (removed this function because it is not used any more)
 	describe('getIdentifierTo', () => {
 		it('returns substring up to specified character', () => {
 			const input = 'Hello, World!';
@@ -98,4 +99,5 @@ describe('StackKnowledge', () => {
 			expect(() => getIdentifierTo(input, '!', input.length + 1)).to.throw();
 		});
 	});
+*/
 });
