@@ -43,15 +43,22 @@
 		console.debug(`StackKnowledge.processStack: stackLines.length=${stackLines.length}`)
 		for (let i = 0; i < stackLines.length; i++) {
 			// Check whether matches a stack line
-			const match = StackKnowledge.StackRegex.exec(stackLines[i]);
-			if (match && match.groups && match.groups.class && match.groups.method) {
-				const className = match.groups.class;
-				const methodName = match.groups.method;
-
+			const result = extractClassAndMethod(stackLines[i]);
+			if (result) {
+				const [className, methodName] = result;
 				this.addStackEntry(className, methodName);
-
 				continue; // in case we add more processing later
 			}
+
+			// const match = StackKnowledge.StackRegex.exec(stackLines[i]);
+			// if (match && match.groups && match.groups.class && match.groups.method) {
+			// 	const className = match.groups.class;
+			// 	const methodName = match.groups.method;
+			//
+			// 	this.addStackEntry(className, methodName);
+			//
+			// 	continue; // in case we add more processing later
+			// }
 
 			// TODO: Async regex
 
@@ -91,10 +98,10 @@
 		outputArray.push('flowchart LR');
 		// Go through classes and methods to create subgraphs
 		for (const classDefinition of this.classes) {
-			const classId = convertNameToMermaidId(classDefinition.name);
+			const classId = classDefinition.toMermaidId();
 			outputArray.push(`  subgraph ${classDefinition.name}`);
 			for (const methodDefinition of classDefinition.methods) {
-				const methodId = convertNameToMermaidId(methodDefinition.name);
+				const methodId = methodDefinition.toMermaidId();
 				outputArray.push(`    ${classId}.${methodId}("${methodDefinition.name}()")`);
 			}
 			outputArray.push('  end');
@@ -102,10 +109,12 @@
 
 		// Go through stack entries backwards to create links
 		for (let i = this.stackEntries.length - 1; i >= 0; i--) {
-			const stackEntry = this.stackEntries[i];
-			const classId = convertNameToMermaidId(stackEntry.classDefinition.name);
-			const methodId = convertNameToMermaidId(stackEntry.methodDefinition.name);
-			outputArray.push(`  ${classId}.${methodId} -->`);
+			const id = this.stackEntries[i].toMermaidId();
+			if (i > 0) {
+				outputArray.push(`  ${id} -->`);
+			} else {
+				outputArray.push(`  ${id}`);
+			}
 		}
 
 		outputArray.push('```')
@@ -115,14 +124,15 @@
 
 	readonly stackEntries: StackEntry[] = [];
 	readonly classes: ClassDefinition[] = [];
-	readonly stackLines: StackLine[] = []; // TODO: unused
+	// readonly stackLines: StackLine[] = []; // TODO: unused
 
 
 	// static readonly StackRegex = /(?<namespace>[_a-zA-Z0-9\.]+)\.(?<class>[_a-zA-Z0-9]+)\.(?<method>[_a-zA-Z0-9]+)\s*\((?<parameters>[a-zA-Z0-9, ]+)\)\s*\((?<file>[a-zA-Z0-9\/._]+):(?<line>[0-9]+)\)/;
-	static readonly StackRegex = /(?<namespace>([_a-zA-Z0-9\\.]+?)+)\.(?<class>[_a-zA-Z0-9]+?)\.(?<method>[_a-zA-Z0-9]+)\s*(?<theRest>.*)$/ ; // \((?<parameters>[a-zA-Z0-9, ]+)\)\s*\((?<file>[a-zA-Z0-9\/._]+):(?<line>[0-9]+)\)/;
+	//static readonly StackRegex = /(?<namespace>([_a-zA-Z0-9\\.]+?)+)\.(?<class>[_a-zA-Z0-9]+?)\.(?<method>[_a-zA-Z0-9]+)\s*(?<theRest>.*)$/ ; // \((?<parameters>[a-zA-Z0-9, ]+)\)\s*\((?<file>[a-zA-Z0-9\/._]+):(?<line>[0-9]+)\)/;
 	// TODO: Async regex
 }
 
+/*
 class StackLine { // TODO: Unused
 	readonly namespace: string;
 	readonly className: string;
@@ -145,6 +155,7 @@ class StackLine { // TODO: Unused
 		return `${this.namespace}.${this.className}.${this.methodName}(${this.parameters}) (${this.file}:${this.line})`;
 	}
 }
+*/
 
 class StackEntry {
 	readonly classDefinition: ClassDefinition;
@@ -204,16 +215,37 @@ class ClassDefinition {
  * @param name Input name to be converted.
  */
 function convertNameToMermaidId(name: string): string {
-	let output = '';
+	if (0 == name.length)
+		throw new Error(`convertNameToMermaidId(): name is empty`);
+
+	let output = name.charAt(0);
 	for (let i = 0; i < name.length; i++) {
 		const char = name.charAt(i);
-		if (i === 0) {
-			output += char.toLowerCase();
-		} else if (char === char.toUpperCase()) {
-			output += char.toLowerCase();
+		if (' ' !== char && char === char.toUpperCase()) {
+			output += char;
 		}
 	}
 	return output;
+}
+
+/**
+ * Extract class and method from a stack line.
+ * @param string
+ */
+function extractClassAndMethod(string: string): ([string, string] | undefined) {
+	const index = string.indexOf('(');
+	if (index < 0)
+		return undefined;
+
+	const classAndMethod = string.substring(0, index);
+	const parts = classAndMethod.split('.');
+	if (parts.length < 2)
+		return undefined;
+
+	const className = parts[parts.length - 2].trim();
+	const methodName = parts[parts.length - 1].trim();
+
+	return [className, methodName];
 }
 
 export function getIdentifierTo(input: string, finalChar: string, startIndex: number = 0): string {
