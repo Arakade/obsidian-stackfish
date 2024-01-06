@@ -48,37 +48,40 @@
 				const className = match.groups.class;
 				const methodName = match.groups.method;
 
-				// If we already have a class definition, check whether it already has this method or add if not.
-				let classDefinition = this.classes.find(classDefinition => classDefinition.name === className);
-				let methodDefinition: MethodDefinition | undefined;
-				if (classDefinition) {
-					// If method is not in class, add method to class
-					methodDefinition = classDefinition.methods.find(methodDefinition => methodDefinition.name === methodName);
-					if (!methodDefinition) {
-						classDefinition.methods.push(new MethodDefinition(methodName));
-					} // else (already in class, all done for this line)
-				} else { // else (class is not in classes) => create class and add method to class
-					methodDefinition = new MethodDefinition(methodName);
-					classDefinition = new ClassDefinition(className, [methodDefinition]);
-					this.classes.push(classDefinition);
-				}
+				this.addStackEntry(className, methodName);
 
-				// Add stack entry
-				if (!methodDefinition)
-					throw new Error(`StackKnowledge.processStack: methodDefinition is undefined for line ${i}: ${stackLines[i]}`);
-
-				const stackEntry = new StackEntry(classDefinition, methodDefinition);
-				this.stackEntries.push(stackEntry);
-
-				console.debug(`StackKnowledge.processStack: Added stack entry: ${stackEntry}`);
 				continue; // in case we add more processing later
 			}
 
 			// TODO: Async regex
 
 			// If we get here, we didn't match a stack line
-			console.debug(`StackKnowledge.processStack: Did not match stack line: ${stackLines[i]}`);
+			console.debug(`StackKnowledge.processStack: No stack line matched on line ${i}: ${stackLines[i]}`);
 		}
+	}
+
+	private addStackEntry(className: string, methodName: string): void {
+		// If we already have a class definition, check whether it already has this method or add if not.
+		let classDefinition = this.classes.find(classDefinition => classDefinition.name === className);
+		let methodDefinition: MethodDefinition | undefined;
+		if (classDefinition) {
+			// If method is not in class, add method to class
+			methodDefinition = classDefinition.methods.find(methodDefinition => methodDefinition.name === methodName);
+			if (!methodDefinition) {
+				methodDefinition = new MethodDefinition(methodName);
+				classDefinition.methods.push(methodDefinition);
+			} // else (already in class, all done for this line)
+		} else { // else (class is not in classes) => create class and add method to class
+			methodDefinition = new MethodDefinition(methodName);
+			classDefinition = new ClassDefinition(className, [methodDefinition]);
+			this.classes.push(classDefinition);
+		}
+
+		// Add stack entry
+		const stackEntry = new StackEntry(classDefinition, methodDefinition);
+		this.stackEntries.push(stackEntry);
+
+		console.debug(`StackKnowledge.processStack: Added stack entry: ${stackEntry}`);
 	}
 
 	dumpAsMermaidFlowchart(): string {
@@ -211,4 +214,12 @@ function convertNameToMermaidId(name: string): string {
 		}
 	}
 	return output;
+}
+
+export function getIdentifierTo(input: string, finalChar: string, startIndex: number = 0): string {
+	const index = input.indexOf(finalChar, startIndex);
+	if (index < 0)
+		throw new Error(`getIdentifierTo: Could not find ${finalChar} in ${input}`);
+
+	return input.substring(startIndex, index);
 }
