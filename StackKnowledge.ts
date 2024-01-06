@@ -35,6 +35,8 @@
 	 * \```
 	 * ```
 	 *
+	 * Note the async method (with `<>`) is handled specially, extracting the method name from the angle brackets.
+	 *
 	 * @param stackText Input text to process.
 	 * @returns Output text with any stack trace lines converted to mermaid flowchart.
 	 */
@@ -230,6 +232,7 @@ function convertNameToMermaidId(name: string): string {
 
 /**
  * Extract class and method from a stack line.
+ * Note the async method (with `<>`) is handled specially, extracting the method name from the angle brackets.
  * @param string
  */
 function extractClassAndMethod(string: string): ([string, string] | undefined) {
@@ -237,15 +240,32 @@ function extractClassAndMethod(string: string): ([string, string] | undefined) {
 	if (index < 0)
 		return undefined;
 
-	const classAndMethod = string.substring(0, index);
-	const parts = classAndMethod.split('.');
-	if (parts.length < 2)
-		return undefined;
+	const isAsync = -1 !== string.indexOf('MoveNext');
+	if (isAsync) {
+		const angleStart = string.indexOf('<');
+		const angleEnd = string.indexOf('>', angleStart);
+		if (angleStart < 0 || angleEnd < 0)
+			return undefined;
 
-	const className = parts[parts.length - 2].trim();
-	const methodName = parts[parts.length - 1].trim();
+		const methodName = string.substring(angleStart + 1, angleEnd);
+		const namespaceAndClass = string.substring(0, angleStart - 1);
+		const parts = namespaceAndClass.split('.');
+		if (parts.length < 2)
+			return undefined;
 
-	return [className, methodName];
+		const className = parts[parts.length - 1].trim();
+		return [className, methodName];
+	} else {
+		const namespaceAndClass = string.substring(0, index);
+		const parts = namespaceAndClass.split('.');
+		if (parts.length < 2)
+			return undefined;
+
+		const className = parts[parts.length - 2].trim();
+		const methodName = parts[parts.length - 1].trim();
+
+		return [className, methodName];
+	}
 }
 
 export function getIdentifierTo(input: string, finalChar: string, startIndex: number = 0): string {
