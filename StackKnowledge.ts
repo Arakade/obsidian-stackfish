@@ -42,8 +42,15 @@
 	 */
 	processStack(stackText: string): void {
 		const stackLines = stackText.split('\n');
-		console.debug(`StackKnowledge.processStack: stackLines.length=${stackLines.length}`)
+		const ignoreRegex = buildCombinedRegex();
+		// console.debug(`StackKnowledge.processStack: stackLines.length=${stackLines.length}`)
 		for (let i = 0; i < stackLines.length; i++) {
+			// Ignore lines that match the ignore list
+			if (ignoreRegex.test(stackLines[i])) {
+				// console.debug(`StackKnowledge.processStack: Ignoring line ${i}: ${stackLines[i]}`);
+				continue;
+			}
+
 			// Check whether matches a stack line
 			const result = extractClassAndMethod(stackLines[i]);
 			if (result) {
@@ -51,18 +58,6 @@
 				this.addStackEntry(className, methodName);
 				continue; // in case we add more processing later
 			}
-
-			// const match = StackKnowledge.StackRegex.exec(stackLines[i]);
-			// if (match && match.groups && match.groups.class && match.groups.method) {
-			// 	const className = match.groups.class;
-			// 	const methodName = match.groups.method;
-			//
-			// 	this.addStackEntry(className, methodName);
-			//
-			// 	continue; // in case we add more processing later
-			// }
-
-			// TODO: Async regex
 
 			// If we get here, we didn't match a stack line
 			console.debug(`StackKnowledge.processStack: No stack line matched on line ${i}: ${stackLines[i]}`);
@@ -90,7 +85,7 @@
 		const stackEntry = new StackEntry(classDefinition, methodDefinition);
 		this.stackEntries.push(stackEntry);
 
-		console.debug(`StackKnowledge.processStack: Added stack entry: ${stackEntry}`);
+		// console.debug(`StackKnowledge.processStack: Added stack entry: ${stackEntry}`);
 	}
 
 	dumpAsMermaidFlowchart(): string {
@@ -169,7 +164,7 @@ class StackEntry {
 	}
 
 	toMermaidId(): string {
-		return `${this.classDefinition.toMermaidId()}.${convertNameToMermaidId(this.methodDefinition.toMermaidId())}`;
+		return `${this.classDefinition.toMermaidId()}.${this.methodDefinition.toMermaidId()}`;
 	}
 
 	toString(): string {
@@ -221,12 +216,13 @@ function convertNameToMermaidId(name: string): string {
 		throw new Error(`convertNameToMermaidId(): name is empty`);
 
 	let output = name.charAt(0);
-	for (let i = 0; i < name.length; i++) {
+	for (let i = 1; i < name.length; i++) {
 		const char = name.charAt(i);
 		if (' ' !== char && char === char.toUpperCase()) {
 			output += char;
 		}
 	}
+	// console.debug(`convertNameToMermaidId(): name="${name}", output="${output}"`);
 	return output;
 }
 
@@ -249,7 +245,7 @@ function extractClassAndMethod(string: string): ([string, string] | undefined) {
 
 		const methodName = string.substring(angleStart + 1, angleEnd);
 		const namespaceAndClass = string.substring(0, angleStart - 1);
-		const parts = namespaceAndClass.split('.');
+		const parts = namespaceAndClass.split(/[.:]/);
 		if (parts.length < 2)
 			return undefined;
 
@@ -257,7 +253,7 @@ function extractClassAndMethod(string: string): ([string, string] | undefined) {
 		return [className, methodName];
 	} else {
 		const namespaceAndClass = string.substring(0, index);
-		const parts = namespaceAndClass.split('.');
+		const parts = namespaceAndClass.split(/[.:]/);
 		if (parts.length < 2)
 			return undefined;
 
@@ -268,10 +264,39 @@ function extractClassAndMethod(string: string): ([string, string] | undefined) {
 	}
 }
 
+/* Unused
 export function getIdentifierTo(input: string, finalChar: string, startIndex: number = 0): string {
 	const index = input.indexOf(finalChar, startIndex);
 	if (index < 0)
 		throw new Error(`getIdentifierTo: Could not find ${finalChar} in ${input}`);
 
 	return input.substring(startIndex, index);
+}
+*/
+
+const DefaultCSharpIgnoreList = [
+	/location/,
+	/ExceptionServices/,
+	/CompilerServices/,
+	/NUnit\.Framework\.Internal/,
+	/^ExecutionContext./,
+	/^AsyncMethodBuilderCore./,
+	/^AwaitTaskContinuation./,
+	/^Task./,
+	/^AsyncTaskMethodBuilder</,
+	/^AsyncTaskMethodBuilder.SetResult/,
+	/^TimerQueue/,
+	/^\[/,
+	/^System\.Threading\.[^ ]*\(FinishStageThree/,
+	/FinishContinuations/,
+	/SynchronizationContextAwaitTaskContinuation/,
+	/AwaitTaskContinuation/,
+	/ExecutionContext\)/,
+	/UnitySynchronizationContext/,
+];
+// 'location|ExceptionServices|CompilerServices|NUnit\.Framework\.Internal|^ExecutionContext.|^AsyncMethodBuilderCore.|^AwaitTaskContinuation.|^Task.|^AsyncTaskMethodBuilder<|^AsyncTaskMethodBuilder.SetResult|^TimerQueue|^\[|^System\.Threading\.[^ ]*(FinishStageThree|FinishContinuations|SynchronizationContextAwaitTaskContinuation|AwaitTaskContinuation|ExecutionContext)';
+
+function buildCombinedRegex() {
+	const regexes = DefaultCSharpIgnoreList.map(regex => regex.source);
+	return new RegExp(regexes.join('|'));
 }
